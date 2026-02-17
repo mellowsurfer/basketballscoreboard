@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🏀 Basketball Scoreboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@400;600;700&family=Barlow:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f; --panel: #111118; --border: #1e1e2e;
+    --home: #ff4444; --home-dim: rgba(255,68,68,0.15);
+    --away: #4488ff; --away-dim: rgba(68,136,255,0.15);
+    --gold: #f5c842; --text: #e8e8f0; --muted: #6b6b88;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Barlow', sans-serif; min-height: 100vh; overflow-x: hidden; }
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background: radial-gradient(ellipse 60% 40% at 50% 0%, rgba(245,200,66,0.04) 0%, transparent 60%),
+                radial-gradient(ellipse 80% 50% at 50% 100%, rgba(255,68,68,0.03) 0%, transparent 60%);
+    pointer-events: none; z-index: 0;
+  }
+  .app { position: relative; z-index: 1; max-width: 960px; margin: 0 auto; padding: 20px 16px 60px; }
+
+  header { text-align: center; padding: 16px 0 24px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+  header h1 { font-family: 'Bebas Neue', cursive; font-size: clamp(2rem,6vw,3.2rem); letter-spacing: 0.08em; color: var(--gold); line-height:1; }
+  header p { font-size: 0.75rem; color: var(--muted); letter-spacing: 0.15em; text-transform: uppercase; margin-top: 4px; }
+
+  /* TABS */
+  .tabs { display: flex; gap: 4px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 4px; margin-bottom: 20px; }
+  .tab-btn { flex: 1; padding: 9px; border: none; background: transparent; color: var(--muted); font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 0.85rem; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; border-radius: 7px; transition: all 0.2s; }
+  .tab-btn.active { background: var(--border); color: var(--gold); }
+  .tab-btn:hover:not(.active) { color: var(--text); }
+  .tab-pane { display: none; }
+  .tab-pane.active { display: block; }
+
+  /* GAME BAR */
+  .game-bar { display: flex; align-items: center; justify-content: center; gap: 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px 20px; margin-bottom: 20px; flex-wrap: wrap; }
+  .quarter-label { font-family: 'Bebas Neue', cursive; font-size: 1.4rem; color: var(--gold); letter-spacing: 0.06em; }
+  .quarter-btns { display: flex; gap: 6px; }
+  .quarter-btns button { width: 32px; height: 32px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--muted); font-family: 'Bebas Neue', cursive; font-size: 1rem; cursor: pointer; transition: all 0.15s; }
+  .quarter-btns button.active { background: var(--gold); color: #000; border-color: var(--gold); }
+  .quarter-btns button:hover:not(.active) { border-color: var(--gold); color: var(--gold); }
+  .divider { width: 1px; height: 36px; background: var(--border); }
+  .timer-display { font-family: 'Bebas Neue', cursive; font-size: 2.2rem; letter-spacing: 0.04em; color: var(--text); min-width: 80px; text-align: center; cursor: pointer; }
+  .timer-display.running { color: var(--gold); animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.7} }
+  .timer-controls { display: flex; gap: 6px; }
+  .timer-controls button { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--muted); font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 0.8rem; letter-spacing: 0.08em; cursor: pointer; transition: all 0.15s; }
+  .timer-controls button:hover { border-color: var(--gold); color: var(--gold); }
+  .timer-controls button.danger:hover { border-color: var(--home); color: var(--home); }
+
+  /* SCOREBOARD */
+  .scoreboard { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; margin-bottom: 20px; align-items: stretch; }
+  .team-card { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 20px 16px; display: flex; flex-direction: column; gap: 12px; }
+  .team-card.home { border-top: 3px solid var(--home); }
+  .team-card.away { border-top: 3px solid var(--away); }
+  .team-name-input { background: transparent; border: none; border-bottom: 1px solid var(--border); color: var(--text); font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 1.1rem; letter-spacing: 0.06em; text-transform: uppercase; text-align: center; width: 100%; padding: 4px 0; outline: none; transition: border-color 0.2s; }
+  .team-name-input:focus { border-bottom-color: var(--gold); }
+  .home .team-name-input { color: var(--home); }
+  .away .team-name-input { color: var(--away); }
+  .score-display { font-family: 'Bebas Neue', cursive; font-size: clamp(4rem,12vw,6.5rem); line-height: 1; text-align: center; transition: transform 0.1s; }
+  .home .score-display { color: var(--home); }
+  .away .score-display { color: var(--away); }
+  .score-display.bump { transform: scale(1.08); }
+  .score-btns { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+  .score-btn { padding: 10px 4px; border-radius: 8px; border: 1px solid var(--border); background: transparent; font-family: 'Bebas Neue', cursive; font-size: 1.1rem; letter-spacing: 0.06em; cursor: pointer; transition: all 0.15s; }
+  .home .score-btn { color: var(--home); }
+  .away .score-btn { color: var(--away); }
+  .home .score-btn:hover { background: var(--home-dim); border-color: var(--home); }
+  .away .score-btn:hover { background: var(--away-dim); border-color: var(--away); }
+  .score-btn.minus { grid-column: span 3; font-size: 0.9rem; padding: 7px; color: var(--muted) !important; }
+  .score-btn.minus:hover { color: var(--text) !important; border-color: var(--muted); background: rgba(255,255,255,0.04); }
+  .foul-row { display: flex; align-items: center; justify-content: space-between; padding-top: 8px; border-top: 1px solid var(--border); }
+  .foul-label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+  .foul-dots { display: flex; gap: 5px; align-items: center; }
+  .foul-dot { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--border); cursor: pointer; transition: all 0.15s; }
+  .foul-dot.active { border-color: var(--gold); background: var(--gold); }
+  .foul-dot:hover:not(.active) { border-color: var(--gold); }
+  .timeout-row { display: flex; align-items: center; justify-content: space-between; }
+  .timeout-label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+  .timeout-dots { display: flex; gap: 4px; }
+  .timeout-dot { width: 10px; height: 10px; border-radius: 2px; border: 1.5px solid var(--border); cursor: pointer; transition: all 0.15s; }
+  .timeout-dot.used { border-color: var(--muted); background: var(--muted); }
+  .timeout-dot:hover { border-color: var(--gold); }
+  .vs-center { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 16px 0; }
+  .vs-text { font-family: 'Bebas Neue', cursive; font-size: 1.6rem; color: var(--muted); letter-spacing: 0.1em; }
+  .diff-badge { font-family: 'Bebas Neue', cursive; font-size: 0.9rem; padding: 3px 8px; border-radius: 20px; background: var(--border); color: var(--muted); letter-spacing: 0.06em; transition: all 0.3s; }
+
+  /* PLAYER PANELS */
+  .players-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+  .player-panel { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+  .player-panel.home { border-top: 3px solid var(--home); }
+  .player-panel.away { border-top: 3px solid var(--away); }
+  .player-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .player-panel-title { font-family: 'Bebas Neue', cursive; font-size: 1rem; letter-spacing: 0.1em; }
+  .home .player-panel-title { color: var(--home); }
+  .away .player-panel-title { color: var(--away); }
+  .add-player-btn { padding: 4px 12px; border-radius: 5px; border: 1px solid var(--border); background: transparent; color: var(--muted); font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 0.75rem; letter-spacing: 0.06em; cursor: pointer; transition: all 0.15s; }
+  .add-player-btn:hover { border-color: var(--gold); color: var(--gold); }
+  .player-list { padding: 8px; display: flex; flex-direction: column; gap: 4px; min-height: 60px; }
+  .player-row { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; transition: background 0.15s, border-color 0.15s; }
+  .player-row:hover { background: rgba(255,255,255,0.03); border-color: var(--border); }
+  .player-number { font-family: 'Bebas Neue', cursive; font-size: 1.1rem; color: var(--gold); min-width: 28px; text-align: center; }
+  .player-name { font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 0.9rem; flex: 1; color: var(--text); }
+  .player-pts { font-family: 'Bebas Neue', cursive; font-size: 1.2rem; min-width: 28px; text-align: right; }
+  .home .player-pts { color: var(--home); }
+  .away .player-pts { color: var(--away); }
+  .player-fouls { display: flex; gap: 3px; align-items: center; }
+  .player-foul-dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--border); cursor: pointer; transition: all 0.12s; }
+  .player-foul-dot.active { border-color: var(--gold); background: var(--gold); }
+  .player-foul-dot:hover:not(.active) { border-color: var(--gold); }
+  .delete-player-btn { width: 22px; height: 22px; border-radius: 4px; border: none; background: transparent; color: var(--border); font-size: 0.8rem; cursor: pointer; transition: color 0.15s; display: flex; align-items: center; justify-content: center; }
+  .delete-player-btn:hover { color: var(--home); }
+  .add-player-form { display: none; gap: 6px; padding: 10px; border-top: 1px solid var(--border); align-items: center; }
+  .add-player-form.open { display: flex; }
+  .add-player-form input { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: 'Barlow', sans-serif; font-size: 0.85rem; padding: 6px 10px; outline: none; transition: border-color 0.2s; }
+  .add-player-form input:focus { border-color: var(--gold); }
+  .add-player-form input.num-input { width: 52px; text-align: center; }
+  .add-player-form input.name-input { flex: 1; }
+  .confirm-add-btn { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--gold); background: var(--gold); color: #000; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 0.8rem; cursor: pointer; transition: opacity 0.15s; }
+  .confirm-add-btn:hover { opacity: 0.85; }
+  .cancel-add-btn { padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--muted); font-size: 0.8rem; cursor: pointer; }
+  .empty-players { padding: 16px; text-align: center; color: var(--muted); font-size: 0.8rem; }
+
+  /* QUICK SCORE */
+  .psb { width: 26px; height: 26px; border-radius: 5px; border: 1px solid var(--border); background: transparent; font-family: 'Bebas Neue', cursive; font-size: 0.8rem; cursor: pointer; transition: all 0.12s; display: flex; align-items: center; justify-content: center; }
+  .psb.home { color: var(--home); }
+  .psb.away { color: var(--away); }
+  .psb.home:hover { background: var(--home-dim); border-color: var(--home); }
+  .psb.away:hover { background: var(--away-dim); border-color: var(--away); }
+
+  /* STATS TABLE */
+  .stats-section { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; margin-bottom: 20px; }
+  .stats-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid var(--border); }
+  .stats-header h2 { font-family: 'Bebas Neue', cursive; font-size: 1.1rem; letter-spacing: 0.1em; color: var(--muted); }
+  .stats-table { width: 100%; border-collapse: collapse; }
+  .stats-table th { font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+  .stats-table th:not(:first-child):not(:nth-child(2)):not(:nth-child(3)) { text-align: right; }
+  .stats-table td { padding: 9px 12px; font-size: 0.85rem; border-bottom: 1px solid rgba(255,255,255,0.03); }
+  .stats-table td:not(:first-child):not(:nth-child(2)):not(:nth-child(3)) { text-align: right; }
+  .stats-table tr:last-child td { border-bottom: none; }
+  .stats-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .stats-team-row td { background: rgba(255,255,255,0.015) !important; }
+  .stats-num { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 0.78rem; color: var(--gold); }
+  .stats-name { font-family: 'Barlow Condensed', sans-serif; font-weight: 600; }
+  .gold-num { font-family: 'Bebas Neue', cursive; font-size: 1.05rem; color: var(--gold); }
+  .muted-num { font-family: 'Barlow Condensed', sans-serif; font-size: 0.85rem; color: var(--muted); }
+
+  /* LOG */
+  .log-section { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; margin-bottom: 20px; }
+  .log-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--border); }
+  .log-header h2 { font-family: 'Bebas Neue', cursive; font-size: 1.1rem; letter-spacing: 0.1em; color: var(--muted); }
+  .log-clear-btn { font-size: 0.72rem; padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; transition: all 0.15s; }
+  .log-clear-btn:hover { border-color: var(--home); color: var(--home); }
+  .log-list { max-height: 220px; overflow-y: auto; padding: 8px 0; }
+  .log-item { display: flex; align-items: center; gap: 8px; padding: 6px 20px; font-size: 0.82rem; animation: fadeIn 0.2s ease; border-bottom: 1px solid rgba(255,255,255,0.03); }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:translateY(0)} }
+  .log-time { color: var(--muted); font-size: 0.75rem; min-width: 50px; }
+  .log-qtr { color: var(--muted); font-size: 0.75rem; min-width: 28px; }
+  .log-badge { font-family: 'Bebas Neue', cursive; font-size: 0.85rem; padding: 1px 7px; border-radius: 4px; letter-spacing: 0.06em; }
+  .log-badge.home { background: var(--home-dim); color: var(--home); }
+  .log-badge.away { background: var(--away-dim); color: var(--away); }
+  .log-desc { flex: 1; color: var(--text); }
+  .log-score { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; color: var(--muted); font-size: 0.8rem; min-width: 60px; text-align: right; }
+
+  .action-bar { display: flex; justify-content: center; gap: 12px; }
+  .reset-btn { padding: 10px 28px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--muted); font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 0.85rem; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; transition: all 0.2s; }
+  .reset-btn:hover { border-color: var(--home); color: var(--home); }
+
+  .log-list::-webkit-scrollbar { width: 4px; }
+  .log-list::-webkit-scrollbar-track { background: transparent; }
+  .log-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .quick-section { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; margin-bottom: 20px; }
+  .quick-section-header { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .quick-section-header h2 { font-family: 'Bebas Neue', cursive; font-size: 1.1rem; letter-spacing: 0.1em; color: var(--muted); }
+  .quick-section-header span { font-size: 0.72rem; color: var(--muted); }
+  .quick-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px; }
+  .quick-team-label { font-size: 0.72rem; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+
+  @media (max-width: 600px) {
+    .scoreboard { grid-template-columns: 1fr 1fr; }
+    .vs-center { display: none; }
+    .players-grid { grid-template-columns: 1fr; }
+    .quick-inner { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>🏀 Basketball Scoreboard</h1>
+    <p>5on5 · Score Tracker</p>
+  </header>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('game',this)">🏀 ゲーム</button>
+    <button class="tab-btn" onclick="switchTab('players',this)">👥 選手登録</button>
+    <button class="tab-btn" onclick="switchTab('stats',this)">📊 成績表</button>
+  </div>
+
+  <!-- ===== GAME TAB ===== -->
+  <div class="tab-pane active" id="tab-game">
+    <div class="game-bar">
+      <span class="quarter-label">Q</span>
+      <div class="quarter-btns" id="quarterBtns">
+        <button class="active" onclick="setQuarter(1)">1</button>
+        <button onclick="setQuarter(2)">2</button>
+        <button onclick="setQuarter(3)">3</button>
+        <button onclick="setQuarter(4)">4</button>
+        <button onclick="setQuarter('OT')">OT</button>
+      </div>
+      <div class="divider"></div>
+      <div class="timer-display" id="timerDisplay" onclick="toggleTimer()">10:00</div>
+      <div class="timer-controls">
+        <button onclick="toggleTimer()" id="timerBtn">▶ START</button>
+        <button class="danger" onclick="resetTimer()">RESET</button>
+      </div>
+    </div>
+
+    <div class="scoreboard">
+      <div class="team-card home">
+        <input class="team-name-input" id="homeName" value="HOME" maxlength="12" oninput="renderAll()">
+        <div class="score-display" id="homeScore">0</div>
+        <div class="score-btns">
+          <button class="score-btn" onclick="addTeamScore('home',1)">+1pt</button>
+          <button class="score-btn" onclick="addTeamScore('home',2)">+2pt</button>
+          <button class="score-btn" onclick="addTeamScore('home',3)">+3pt</button>
+          <button class="score-btn minus" onclick="addTeamScore('home',-1)">−1 UNDO</button>
+        </div>
+        <div class="timeout-row">
+          <span class="timeout-label">タイムアウト</span>
+          <div class="timeout-dots" id="homeTimeouts">
+            <div class="timeout-dot" onclick="useTimeout('home',0)"></div>
+            <div class="timeout-dot" onclick="useTimeout('home',1)"></div>
+            <div class="timeout-dot" onclick="useTimeout('home',2)"></div>
+            <div class="timeout-dot" onclick="useTimeout('home',3)"></div>
+            <div class="timeout-dot" onclick="useTimeout('home',4)"></div>
+          </div>
+        </div>
+        <div class="foul-row">
+          <span class="foul-label">チームファウル</span>
+          <div class="foul-dots" id="homeFouls">
+            <div class="foul-dot" onclick="addTeamFoul('home',0)"></div>
+            <div class="foul-dot" onclick="addTeamFoul('home',1)"></div>
+            <div class="foul-dot" onclick="addTeamFoul('home',2)"></div>
+            <div class="foul-dot" onclick="addTeamFoul('home',3)"></div>
+            <div class="foul-dot" onclick="addTeamFoul('home',4)"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="vs-center">
+        <div class="vs-text">VS</div>
+        <div class="diff-badge" id="diffBadge">±0</div>
+      </div>
+
+      <div class="team-card away">
+        <input class="team-name-input" id="awayName" value="AWAY" maxlength="12" oninput="renderAll()">
+        <div class="score-display" id="awayScore">0</div>
+        <div class="score-btns">
+          <button class="score-btn" onclick="addTeamScore('away',1)">+1pt</button>
+          <button class="score-btn" onclick="addTeamScore('away',2)">+2pt</button>
+          <button class="score-btn" onclick="addTeamScore('away',3)">+3pt</button>
+          <button class="score-btn minus" onclick="addTeamScore('away',-1)">−1 UNDO</button>
+        </div>
+        <div class="timeout-row">
+          <span class="timeout-label">タイムアウト</span>
+          <div class="timeout-dots" id="awayTimeouts">
+            <div class="timeout-dot" onclick="useTimeout('away',0)"></div>
+            <div class="timeout-dot" onclick="useTimeout('away',1)"></div>
+            <div class="timeout-dot" onclick="useTimeout('away',2)"></div>
+            <div class="timeout-dot" onclick="useTimeout('away',3)"></div>
+            <div class="timeout-dot" onclick="useTimeout('away',4)"></div>
+          </div>
+        </div>
+        <div class="foul-row">
+          <span class="foul-label">チームファウル</span>
+          <div class="foul-dots" id="awayFouls">
+            <div class="foul-dot" onclick="addTeamFoul('away',0)"></div>
+            <div class="foul-dot" onclick="addTeamFoul('away',1)"></div>
+            <div class="foul-dot" onclick="addTeamFoul('away',2)"></div>
+            <div class="foul-dot" onclick="addTeamFoul('away',3)"></div>
+            <div class="foul-dot" onclick="addTeamFoul('away',4)"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="log-section">
+      <div class="log-header">
+        <h2>📋 Game Log</h2>
+        <button class="log-clear-btn" onclick="clearLog()">クリア</button>
+      </div>
+      <div class="log-list" id="logList"><div style="padding:20px;text-align:center;color:var(--muted);font-size:0.8rem;">ゲームを開始してください</div></div>
+    </div>
+    <div class="action-bar"><button class="reset-btn" onclick="resetGame()">🔄 ゲームをリセット</button></div>
+  </div>
+
+  <!-- ===== PLAYERS TAB ===== -->
+  <div class="tab-pane" id="tab-players">
+    <div class="players-grid">
+      <div class="player-panel home">
+        <div class="player-panel-header">
+          <span class="player-panel-title" id="homePlayerTitle">HOME の選手</span>
+          <button class="add-player-btn" onclick="toggleAddForm('home')">＋ 追加</button>
+        </div>
+        <div class="player-list" id="homePlayerList"><div class="empty-players">選手を追加してください</div></div>
+        <div class="add-player-form" id="homeAddForm">
+          <input class="num-input" id="homeNumInput" type="text" placeholder="#" maxlength="3">
+          <input class="name-input" id="homeNameInput" type="text" placeholder="選手名" maxlength="12">
+          <button class="confirm-add-btn" onclick="confirmAddPlayer('home')">追加</button>
+          <button class="cancel-add-btn" onclick="toggleAddForm('home')">✕</button>
+        </div>
+      </div>
+
+      <div class="player-panel away">
+        <div class="player-panel-header">
+          <span class="player-panel-title" id="awayPlayerTitle">AWAY の選手</span>
+          <button class="add-player-btn" onclick="toggleAddForm('away')">＋ 追加</button>
+        </div>
+        <div class="player-list" id="awayPlayerList"><div class="empty-players">選手を追加してください</div></div>
+        <div class="add-player-form" id="awayAddForm">
+          <input class="num-input" id="awayNumInput" type="text" placeholder="#" maxlength="3">
+          <input class="name-input" id="awayNameInput" type="text" placeholder="選手名" maxlength="12">
+          <button class="confirm-add-btn" onclick="confirmAddPlayer('away')">追加</button>
+          <button class="cancel-add-btn" onclick="toggleAddForm('away')">✕</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="quick-section">
+      <div class="quick-section-header">
+        <h2>⚡ 選手ごとのスコア入力</h2>
+        <span>ボタンをタップして得点を記録</span>
+      </div>
+      <div class="quick-inner">
+        <div>
+          <div class="quick-team-label" id="homeQuickLabel">HOME</div>
+          <div id="homeQuickList"></div>
+        </div>
+        <div>
+          <div class="quick-team-label" id="awayQuickLabel">AWAY</div>
+          <div id="awayQuickList"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="action-bar"><button class="reset-btn" onclick="resetGame()">🔄 ゲームをリセット</button></div>
+  </div>
+
+  <!-- ===== STATS TAB ===== -->
+  <div class="tab-pane" id="tab-stats">
+    <div class="stats-section">
+      <div class="stats-header"><h2>📊 個人成績</h2></div>
+      <div style="overflow-x:auto;">
+        <table class="stats-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>名前</th>
+              <th>チーム</th>
+              <th style="text-align:right">得点</th>
+              <th style="text-align:right">1P</th>
+              <th style="text-align:right">2P</th>
+              <th style="text-align:right">3P</th>
+              <th style="text-align:right">ファウル</th>
+            </tr>
+          </thead>
+          <tbody id="statsBody"><tr><td colspan="8" style="text-align:center;color:var(--muted);padding:24px;font-size:0.82rem;">選手タブで選手を追加してください</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="log-section">
+      <div class="log-header"><h2>📋 Game Log</h2></div>
+      <div class="log-list" id="logList2"><div style="padding:20px;text-align:center;color:var(--muted);font-size:0.8rem;">まだ記録がありません</div></div>
+    </div>
+    <div class="action-bar"><button class="reset-btn" onclick="resetGame()">🔄 ゲームをリセット</button></div>
+  </div>
+</div>
+
+<script>
+const state = {
+  scores: { home: 0, away: 0 },
+  teamFouls: { home: 0, away: 0 },
+  timeouts: { home: 0, away: 0 },
+  quarter: 1,
+  timerSeconds: 600,
+  timerRunning: false,
+  timerInterval: null,
+  log: [],
+  players: { home: [], away: [] }
+};
+
+let playerIdSeq = 1;
+function mkPlayer(num, name) {
+  return { id: playerIdSeq++, number: num, name, pts: 0, pt1: 0, pt2: 0, pt3: 0, fouls: 0 };
+}
+
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+  renderAll();
+}
+
+// --- TIMER ---
+function fmt(s) { return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); }
+function toggleTimer() { state.timerRunning ? stopTimer() : startTimer(); }
+function startTimer() {
+  if (state.timerSeconds <= 0) return;
+  state.timerRunning = true;
+  state.timerInterval = setInterval(() => { if (state.timerSeconds > 0) { state.timerSeconds--; renderTimer(); } else stopTimer(); }, 1000);
+  renderTimer();
+}
+function stopTimer() { state.timerRunning = false; clearInterval(state.timerInterval); renderTimer(); }
+function resetTimer() { stopTimer(); state.timerSeconds = state.quarter === 'OT' ? 300 : 600; renderTimer(); }
+function setQuarter(q) {
+  state.quarter = q; state.timerSeconds = q === 'OT' ? 300 : 600; stopTimer();
+  document.querySelectorAll('.quarter-btns button').forEach((b,i) => b.classList.toggle('active', [1,2,3,4,'OT'][i] === q));
+}
+function renderTimer() {
+  const d = document.getElementById('timerDisplay'), btn = document.getElementById('timerBtn');
+  if (d) { d.textContent = fmt(state.timerSeconds); d.classList.toggle('running', state.timerRunning); }
+  if (btn) btn.textContent = state.timerRunning ? '⏸ PAUSE' : '▶ START';
+}
+
+// --- TEAM SCORE ---
+function addTeamScore(team, pts) {
+  state.scores[team] = Math.max(0, state.scores[team] + pts);
+  if (pts > 0) pushLog(team, null, {1:'フリースロー',2:'2Pシュート',3:'3Pシュート'}[pts]);
+  bump(team + 'Score'); renderAll();
+}
+
+// --- PLAYER SCORE ---
+function addPlayerScore(team, pid, pts) {
+  const p = state.players[team].find(x => x.id === pid);
+  if (!p) return;
+  p.pts += pts; p['pt' + pts]++;
+  state.scores[team] += pts;
+  pushLog(team, p, {1:'フリースロー',2:'2Pシュート',3:'3Pシュート'}[pts]);
+  bump(team + 'Score'); renderAll();
+}
+
+// --- PLAYER FOUL ---
+function addPlayerFoul(team, pid, idx) {
+  const p = state.players[team].find(x => x.id === pid);
+  if (!p) return;
+  p.fouls = p.fouls === idx ? idx+1 : p.fouls === idx+1 ? idx : idx+1;
+  pushLog(team, p, `ファウル (合計 ${p.fouls})`); renderAll();
+}
+
+// --- TEAM FOUL ---
+function addTeamFoul(team, idx) {
+  state.teamFouls[team] = state.teamFouls[team] === idx ? idx+1 : state.teamFouls[team] === idx+1 ? idx : idx+1;
+  renderAll();
+}
+
+// --- TIMEOUT ---
+function useTimeout(team, idx) {
+  state.timeouts[team] = state.timeouts[team] === idx ? idx+1 : state.timeouts[team] === idx+1 ? idx : idx+1;
+  renderAll();
+}
+
+// --- PLAYER MANAGEMENT ---
+function toggleAddForm(team) {
+  const f = document.getElementById(team + 'AddForm');
+  const open = f.classList.toggle('open');
+  if (open) document.getElementById(team + 'NumInput').focus();
+  else { document.getElementById(team+'NumInput').value=''; document.getElementById(team+'NameInput').value=''; }
+}
+function confirmAddPlayer(team) {
+  const num = document.getElementById(team+'NumInput').value.trim();
+  const name = document.getElementById(team+'NameInput').value.trim();
+  if (!name) { document.getElementById(team+'NameInput').focus(); return; }
+  state.players[team].push(mkPlayer(num||'?', name));
+  document.getElementById(team+'NumInput').value='';
+  document.getElementById(team+'NameInput').value='';
+  document.getElementById(team+'NameInput').focus();
+  renderAll();
+}
+function deletePlayer(team, pid) { state.players[team] = state.players[team].filter(p => p.id !== pid); renderAll(); }
+
+// --- LOG ---
+function pushLog(team, player, desc) {
+  state.log.unshift({
+    team, teamName: teamName(team), qtr: state.quarter,
+    time: fmt(state.timerSeconds), desc,
+    playerName: player ? `#${player.number} ${player.name}` : null,
+    score: `${state.scores.home} - ${state.scores.away}`
+  });
+}
+function clearLog() { state.log = []; renderAll(); }
+
+// --- RESET ---
+function resetGame() {
+  if (!confirm('ゲームをリセットしますか？スコアと記録がすべてリセットされます。')) return;
+  stopTimer();
+  state.scores = {home:0,away:0}; state.teamFouls = {home:0,away:0}; state.timeouts = {home:0,away:0};
+  state.quarter = 1; state.timerSeconds = 600; state.log = [];
+  ['home','away'].forEach(t => state.players[t].forEach(p => { p.pts=0; p.pt1=0; p.pt2=0; p.pt3=0; p.fouls=0; }));
+  document.querySelectorAll('.quarter-btns button').forEach((b,i) => b.classList.toggle('active', i===0));
+  renderAll();
+}
+
+function teamName(t) { return document.getElementById(t+'Name')?.value || t.toUpperCase(); }
+function bump(id) { const el = document.getElementById(id); if (!el) return; el.classList.add('bump'); setTimeout(() => el.classList.remove('bump'), 150); }
+
+// --- RENDER ---
+function renderAll() {
+  renderTimer();
+  // scoreboard
+  ['home','away'].forEach(t => {
+    const s = document.getElementById(t+'Score'); if (s) s.textContent = state.scores[t];
+    const fd = document.querySelectorAll(`#${t}Fouls .foul-dot`); fd.forEach((d,i) => d.classList.toggle('active', i < state.teamFouls[t]));
+    const td = document.querySelectorAll(`#${t}Timeouts .timeout-dot`); td.forEach((d,i) => d.classList.toggle('used', i < state.timeouts[t]));
+  });
+  const diff = state.scores.home - state.scores.away;
+  const badge = document.getElementById('diffBadge');
+  if (badge) { badge.textContent = diff>0?`+${diff}`:diff<0?`${diff}`:'±0'; badge.style.background=diff>0?'var(--home-dim)':diff<0?'var(--away-dim)':'var(--border)'; badge.style.color=diff>0?'var(--home)':diff<0?'var(--away)':'var(--muted)'; }
+
+  // player titles
+  const ht = document.getElementById('homePlayerTitle'); if (ht) ht.textContent = teamName('home') + ' の選手';
+  const at = document.getElementById('awayPlayerTitle'); if (at) at.textContent = teamName('away') + ' の選手';
+  const hql = document.getElementById('homeQuickLabel'); if (hql) hql.textContent = teamName('home');
+  const aql = document.getElementById('awayQuickLabel'); if (aql) aql.textContent = teamName('away');
+
+  renderPlayerList('home'); renderPlayerList('away');
+  renderQuickList('home'); renderQuickList('away');
+  renderStats(); renderLog();
+}
+
+function renderPlayerList(team) {
+  const list = document.getElementById(team+'PlayerList'); if (!list) return;
+  const players = state.players[team];
+  if (!players.length) { list.innerHTML = `<div class="empty-players">選手を追加してください</div>`; return; }
+  list.innerHTML = players.map(p => `
+    <div class="player-row">
+      <span class="player-number">${p.number}</span>
+      <span class="player-name">${p.name}</span>
+      <span class="player-pts">${p.pts}</span>
+      <div class="player-fouls">${[0,1,2,3,4].map(i=>`<div class="player-foul-dot${p.fouls>i?' active':''}" onclick="addPlayerFoul('${team}',${p.id},${i})"></div>`).join('')}</div>
+      <button class="delete-player-btn" onclick="deletePlayer('${team}',${p.id})">✕</button>
+    </div>`).join('');
+}
+
+function renderQuickList(team) {
+  const list = document.getElementById(team+'QuickList'); if (!list) return;
+  const players = state.players[team];
+  if (!players.length) { list.innerHTML = `<div style="color:var(--muted);font-size:0.78rem;padding:8px 0;">← 選手タブで追加</div>`; return; }
+  list.innerHTML = players.map(p => `
+    <div class="player-row" style="margin-bottom:2px;">
+      <span class="player-number" style="font-size:0.95rem;">${p.number}</span>
+      <span class="player-name" style="font-size:0.82rem;">${p.name}</span>
+      <span class="player-pts" style="font-size:1rem;">${p.pts}</span>
+      <div style="display:flex;gap:3px;">
+        <button class="psb ${team}" onclick="addPlayerScore('${team}',${p.id},1)">1</button>
+        <button class="psb ${team}" onclick="addPlayerScore('${team}',${p.id},2)">2</button>
+        <button class="psb ${team}" onclick="addPlayerScore('${team}',${p.id},3)">3</button>
+      </div>
+    </div>`).join('');
+}
+
+function renderStats() {
+  const tbody = document.getElementById('statsBody'); if (!tbody) return;
+  const hp = state.players.home.slice().sort((a,b)=>b.pts-a.pts);
+  const ap = state.players.away.slice().sort((a,b)=>b.pts-a.pts);
+  if (!hp.length && !ap.length) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:24px;font-size:0.82rem;">選手タブで選手を追加してください</td></tr>`;
+    return;
+  }
+  const row = (p, t) => `<tr>
+    <td class="stats-num">${p.number}</td>
+    <td class="stats-name">${p.name}</td>
+    <td><span class="log-badge ${t}">${teamName(t)}</span></td>
+    <td style="text-align:right"><span class="gold-num">${p.pts}</span></td>
+    <td style="text-align:right" class="muted-num">${p.pt1}</td>
+    <td style="text-align:right" class="muted-num">${p.pt2}</td>
+    <td style="text-align:right" class="muted-num">${p.pt3}</td>
+    <td style="text-align:right;color:${p.fouls>=5?'var(--home)':'var(--muted)'}" class="muted-num">${p.fouls}</td>
+  </tr>`;
+  const totRow = (score, t) => `<tr class="stats-team-row"><td colspan="3" style="color:var(--muted);font-size:0.72rem;letter-spacing:0.06em;padding:6px 12px;">チーム合計</td><td style="text-align:right"><span class="gold-num">${score}</span></td><td colspan="4"></td></tr>`;
+  tbody.innerHTML =
+    hp.map(p=>row(p,'home')).join('') + (hp.length?totRow(state.scores.home,'home'):'') +
+    ap.map(p=>row(p,'away')).join('') + (ap.length?totRow(state.scores.away,'away'):'');
+}
+
+function renderLog() {
+  const html = state.log.length === 0
+    ? '<div style="padding:20px;text-align:center;color:var(--muted);font-size:0.8rem;">まだ記録がありません</div>'
+    : state.log.map(e=>`<div class="log-item">
+        <span class="log-qtr">${e.qtr==='OT'?'OT':'Q'+e.qtr}</span>
+        <span class="log-time">${e.time}</span>
+        <span class="log-badge ${e.team}">${e.teamName}</span>
+        <span class="log-desc">${e.playerName?`<span style="color:var(--gold);font-size:0.76rem;">${e.playerName}</span> `:'' }${e.desc}</span>
+        <span class="log-score">${e.score}</span>
+      </div>`).join('');
+  ['logList','logList2'].forEach(id => { const el=document.getElementById(id); if(el) el.innerHTML=html; });
+}
+
+// Keyboard shortcuts for add form
+['home','away'].forEach(team => {
+  setTimeout(() => {
+    document.getElementById(team+'NumInput')?.addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById(team+'NameInput').focus(); });
+    document.getElementById(team+'NameInput')?.addEventListener('keydown',e=>{ if(e.key==='Enter') confirmAddPlayer(team); });
+  }, 0);
+});
+
+renderAll();
+</script>
+</body>
+</html>
